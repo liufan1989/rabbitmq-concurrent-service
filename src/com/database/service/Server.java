@@ -15,15 +15,14 @@ public class Server {
 
 		RabbitMQService rs = new RabbitMQService("192.168.1.241", 5672, "guest", "guest");
 		rs.connect();
-		
-		int tasknum = 10;
+
+		int tasknum = 5;
 		MysqlTask[] t = new MysqlTask[tasknum];
 		for(int i = 0;i < tasknum;i++){
 			t[i] = new MysqlTask("", "test");
 			rs.executeTask(t[i]);
 		}
-		
-//		rs.blockwait();
+
 //		try {
 //			Thread.sleep(10000);//10s
 //		} catch (InterruptedException e) {
@@ -31,13 +30,19 @@ public class Server {
 //		}
 //		System.out.println("sleep 10s over.............");
 //		try {
-//			for(int i = 0;i < tasknum;i++){
+//			for(int i = 0;i < 1;i++){
 //				rs.cancel(t[i]);
 //			}
 //		} catch (Exception e) {
 //			e.printStackTrace();
 //		}
-		
+//		rs.close();
+//		try {
+//			Thread.sleep(10000);//10s
+//		} catch (InterruptedException e) {
+//			e.printStackTrace();
+//		}
+//		System.out.println("sleep 10s over.............");
 //		System.out.println("start close service.............");
 //		rs.close();
 //		System.out.println("finish close service.................");

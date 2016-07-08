@@ -25,7 +25,6 @@ public class RabbitMQService  {
 	public enum RABBITMQ_TYPE{PRODUCER,CONSUMER};
 	public final static String EXCHANGE_NAME = "SQL_dispatcher";
 
-	private final static String OVER_MESSAGE = "over";
 	private ConnectionFactory factory = null;
 	private Connection connection = null;
 	private ExecutorService cachedThreadPool = null;
@@ -88,14 +87,6 @@ public class RabbitMQService  {
 			}
 		}
 	}
-	
-	private Channel newChannel() throws IOException{
-		if(!connection.isOpen())
-		{
-			throw new IOException("connecting RabbitMQ Server break down!");
-		}
-		return connection.createChannel();
-	}
 		
 	private void rabbitMQRun(IRabbitMQTask task) throws Exception {
 		
@@ -111,17 +102,20 @@ public class RabbitMQService  {
 		}
 
 		try {
-			
-			channel = this.newChannel();
+			if(!connection.isOpen())
+			{
+				throw new IOException("connecting RabbitMQ Server break down!");
+			}
+			channel = connection.createChannel();
 			channel.basicQos(prefetchCount);
 			channel.exchangeDeclare(EXCHANGE_NAME, "direct", durable);
 			channel.queueDeclare(task.getQueueName(), durable, false, false, null);
 			channel.queueBind(task.getQueueName(), EXCHANGE_NAME, task.getBindingKey());
 			consumer = new QueueingConsumer(channel);
 			channel.basicConsume(task.getQueueName(), autoAck, consumer);
-			
 			task.setChannel(channel);
-			while (task.isRunFlag())  
+			
+			while (true)  
 			{  
 			    delivery = consumer.nextDelivery();
 			    String message = new String(delivery.getBody());
@@ -129,39 +123,31 @@ public class RabbitMQService  {
 			    	if(!message.equals("over")){
 			    		task.process(message);
 			    	}
-			    }
-			    catch(Exception e){
+			    }catch(Exception e){
 			    	System.out.println(Thread.currentThread().getName() + " task process exception[" + message + "]");
 			    }
 			    channel.basicAck(delivery.getEnvelope().getDeliveryTag(),false);  
 			}
-			System.out.println(Thread.currentThread().getName() + " Normal exit!");
+
 		} catch (Exception e) {
-			if (e instanceof InterruptedException){
-			}else{
-				e.printStackTrace();
-				System.out.println(Thread.currentThread().getName() + ":rabbitMQRun thread exception: exit thread!");
-			}
+			System.out.println(Thread.currentThread().getName() + ":rabbitMQRun thread exception: exit thread!");
 		}finally{
 			channel.close();
 			System.out.println(Thread.currentThread().getName() +" channel closed!");
 		}
 	}  
 	
+	//starting task thread
 	public void executeTask(IRabbitMQTask task) {
 		
-		//starting task thread................
 		cachedThreadPool.execute(new Runnable() {  
 		    public void run() {
 		    	System.out.println(Thread.currentThread().getName() + " starting..............");
 
 				    try {
-				    	
 						task.preInitialize();
 						task.initialize();
-						
 				    	rabbitMQRun(task);
-				    	
 				    } catch (Exception e) {  
 				    	e.printStackTrace();
 				    	System.out.println("rabbitmq service executeTask Exception: exit thread!");
@@ -182,54 +168,21 @@ public class RabbitMQService  {
 			producerChannel.basicPublish(EXCHANGE_NAME, routingkey, null, message.getBytes());
 		}
 	}
-	
-	public void blockwait(){
-		try {
-			cachedThreadPool.awaitTermination(Long.MAX_VALUE, TimeUnit.DAYS);  
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		}
-	}
-	
-	//[close不会删除rabbitm中的对应的queue和exchange，只是关闭connection和channel]
+
 	public void close(){
+		
+		cachedThreadPool.shutdownNow();
 		try {
-			if(this.serviceType == RABBITMQ_TYPE.PRODUCER){
-				producerChannel.close();
-				producerChannel = null;
-			}else{
-				cachedThreadPool.shutdownNow();
-				cachedThreadPool.awaitTermination(Long.MAX_VALUE, TimeUnit.DAYS);
-			}
-			System.out.println("rabbitmq service thread pool closed");
-			if(connection.isOpen()){
-				connection.close();
-			}
-			//无论链接关闭与否都将connection=null
-			connection = null;
-			System.out.println("rabbitmq service connection closed!");
-		} catch (Exception e) {
-			e.printStackTrace();
+			cachedThreadPool.awaitTermination(Long.MAX_VALUE, TimeUnit.DAYS);
+		} catch (InterruptedException e1) {
+			e1.printStackTrace();
 		}
+		System.out.println("sleep 10s over.............");
+		connection.abort();
+
 	}
 	
-	//[前提是这个queue和consumer没有关联]
-	//[cancel函数会删除rabbitmq中的对应的queue以及queue和exchange的绑定关系]
-	public void cancel(IRabbitMQTask task) throws Exception{
-		task.setRunFlag(false);
-		Channel extraChannel = null;
-		try {
-			extraChannel = newChannel();
-			if(task.getChannel().isOpen()){
-				extraChannel.basicPublish(EXCHANGE_NAME, task.getBindingKey(), null, OVER_MESSAGE.getBytes());
-			}
-			extraChannel.queueUnbind(task.getQueueName(), EXCHANGE_NAME, task.getBindingKey());
-			extraChannel.queueDelete(task.getQueueName());
-		} catch (IOException e) {
-			e.printStackTrace();
-		}finally{
-			extraChannel.close();
-		}
+	public void cancel(IRabbitMQTask task) throws IOException{
+		task.getChannel().abort();
 	}
-	
 }

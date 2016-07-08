@@ -13,7 +13,6 @@ import com.rabbitmq.client.Channel;
 	private  String bindingKey = null;
 	private  String queueName = null;
 	private  Channel channel = null;
-	private  boolean runFlag = true;
 	
 	public IRabbitMQTask(String name,String key){
 		setQueueName(name);
@@ -39,13 +38,6 @@ import com.rabbitmq.client.Channel;
 	}
 	public void setQueueName(String queueName) {
 		this.queueName = queueName;
-	}
-	
-	public boolean isRunFlag() {
-		return runFlag;
-	}
-	public void setRunFlag(boolean runFlag) {
-		this.runFlag = runFlag;
 	}
 	
 	public abstract void preInitialize() throws Exception;
