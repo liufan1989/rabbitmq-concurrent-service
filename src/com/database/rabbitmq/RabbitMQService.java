@@ -145,8 +145,8 @@ public class RabbitMQService  {
 		    	System.out.println(Thread.currentThread().getName() + " starting..............");
 
 				    try {
-						task.preInitialize();
-						task.initialize();
+					task.preInitialize();
+					task.initialize();
 				    	rabbitMQRun(task);
 				    } catch (Exception e) {  
 				    	e.printStackTrace();
@@ -177,7 +177,6 @@ public class RabbitMQService  {
 		} catch (InterruptedException e1) {
 			e1.printStackTrace();
 		}
-		System.out.println("sleep 10s over.............");
 		connection.abort();
 
 	}
